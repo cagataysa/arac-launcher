@@ -2,23 +2,30 @@ package com.cagatay.aracekran;
 
 import android.Manifest;
 import android.app.Activity;
+import android.content.ComponentName;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.graphics.Bitmap;
 import android.graphics.drawable.Drawable;
 import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
 import android.media.AudioManager;
+import android.media.MediaMetadata;
+import android.media.session.MediaController;
+import android.media.session.MediaSessionManager;
+import android.media.session.PlaybackState;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.SystemClock;
+import android.provider.Settings;
 import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.KeyEvent;
-import android.view.View;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
+import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -37,20 +44,12 @@ public class MainActivity extends Activity implements LocationListener {
 
     private static final int IZIN_KODU = 42;
     private static final long HAVA_ARALIGI_MS = 30 * 60 * 1000L; // 30 dk
-    private static final long HIZ_ZAMAN_ASIMI_MS = 5000L;
-
-    /** Navigasyon butonu: sırayla denenir, ilk yüklü olan açılır. */
-    private static final String[] NAV_PAKETLERI = {
-            "com.google.android.apps.maps",
-            "ru.yandex.yandexnavi",
-            "ru.yandex.yandexmaps",
-            "com.waze",
-            "com.here.app.maps"
-    };
-
     private static final Locale TR = new Locale("tr", "TR");
 
-    private TextView saat, tarih, hiz, sicaklik, havaDurum;
+    private TextView saat, tarih, sicaklik, havaDurum;
+    private TextView kaynak, sarki, sanatci, gecen, toplam, oynat;
+    private ImageView kapak;
+    private ProgressBar ilerleme;
     private LinearLayout dok;
 
     private final Handler handler = new Handler(Looper.getMainLooper());
@@ -58,10 +57,24 @@ public class MainActivity extends Activity implements LocationListener {
     private final SimpleDateFormat tarihFmt = new SimpleDateFormat("d MMMM EEEE", TR);
 
     private LocationManager konum;
-    private long sonKonumZamani = 0;
     private Location sonHavaKonumu;
     private long sonHavaZamani = 0;
     private boolean havaYukleniyor = false;
+
+    // Müzik
+    private MediaSessionManager oturumYoneticisi;
+    private ComponentName dinleyici;
+    private MediaController aktif;
+    private boolean bildirimIzniVar = false;
+
+    private final MediaController.Callback medyaGeriCagri = new MediaController.Callback() {
+        @Override public void onMetadataChanged(MediaMetadata m) { muzikGoster(); }
+        @Override public void onPlaybackStateChanged(PlaybackState s) { muzikGoster(); }
+        @Override public void onSessionDestroyed() { oturumlariYenile(); }
+    };
+
+    private final MediaSessionManager.OnActiveSessionsChangedListener oturumDinleyici =
+            liste -> oturumlariYenile();
 
     private final Runnable saniyelik = new Runnable() {
         @Override
@@ -69,10 +82,7 @@ public class MainActivity extends Activity implements LocationListener {
             Date simdi = new Date();
             saat.setText(saatFmt.format(simdi));
             tarih.setText(tarihFmt.format(simdi));
-            if (sonKonumZamani == 0
-                    || SystemClock.elapsedRealtime() - sonKonumZamani > HIZ_ZAMAN_ASIMI_MS) {
-                hiz.setText("--");
-            }
+            ilerlemeGuncelle();
             handler.postDelayed(this, 1000);
         }
     };
@@ -84,22 +94,38 @@ public class MainActivity extends Activity implements LocationListener {
 
         saat = findViewById(R.id.saat);
         tarih = findViewById(R.id.tarih);
-        hiz = findViewById(R.id.hiz);
         sicaklik = findViewById(R.id.sicaklik);
         havaDurum = findViewById(R.id.havaDurum);
+        kaynak = findViewById(R.id.kaynak);
+        sarki = findViewById(R.id.sarki);
+        sanatci = findViewById(R.id.sanatci);
+        gecen = findViewById(R.id.gecen);
+        toplam = findViewById(R.id.toplam);
+        oynat = findViewById(R.id.oynat);
+        kapak = findViewById(R.id.kapak);
+        kapak.setClipToOutline(true);
+        ilerleme = findViewById(R.id.ilerleme);
         dok = findViewById(R.id.dok);
 
         konum = (LocationManager) getSystemService(LOCATION_SERVICE);
+        oturumYoneticisi = (MediaSessionManager) getSystemService(MEDIA_SESSION_SERVICE);
+        dinleyici = new ComponentName(this, MedyaDinleyici.class);
 
-        findViewById(R.id.navigasyon).setOnClickListener(v -> navigasyonAc());
-        findViewById(R.id.onceki).setOnClickListener(v -> medyaTusu(KeyEvent.KEYCODE_MEDIA_PREVIOUS));
-        findViewById(R.id.oynat).setOnClickListener(v -> medyaTusu(KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE));
-        findViewById(R.id.sonraki).setOnClickListener(v -> medyaTusu(KeyEvent.KEYCODE_MEDIA_NEXT));
+        findViewById(R.id.onceki).setOnClickListener(v -> onceki());
+        oynat.setOnClickListener(v -> oynatDuraklat());
+        findViewById(R.id.sonraki).setOnClickListener(v -> sonraki());
+        findViewById(R.id.sarkiBilgi).setOnClickListener(v -> muzikUygulamasiniAc());
         findViewById(R.id.uygulamalar).setOnClickListener(v ->
                 startActivity(new Intent(this, AppsActivity.class)));
         findViewById(R.id.havaKart).setOnClickListener(v -> {
             sonHavaZamani = 0;
             havaGuncelle(true);
+        });
+
+        // Saate uzun basınca duvar kağıdı seçici açılır
+        findViewById(R.id.saatAlani).setOnLongClickListener(v -> {
+            duvarKagidiSec();
+            return true;
         });
 
         if (!izinVar()) {
@@ -117,6 +143,7 @@ public class MainActivity extends Activity implements LocationListener {
         dokuKur();
         konumBaslat();
         havaGuncelle(false);
+        muzikBaslat();
     }
 
     @Override
@@ -127,6 +154,7 @@ public class MainActivity extends Activity implements LocationListener {
             konum.removeUpdates(this);
         } catch (Exception ignored) {
         }
+        muzikDurdur();
     }
 
     @Override
@@ -143,7 +171,187 @@ public class MainActivity extends Activity implements LocationListener {
         }
     }
 
-    // ---------------- Konum / hız ----------------
+    private void duvarKagidiSec() {
+        try {
+            startActivity(Intent.createChooser(
+                    new Intent(Intent.ACTION_SET_WALLPAPER), "Duvar kağıdı seç"));
+        } catch (Exception e) {
+            Toast.makeText(this, "Duvar kağıdı ayarı açılamadı", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    // ---------------- Çalan müzik ----------------
+
+    private void muzikBaslat() {
+        try {
+            oturumYoneticisi.addOnActiveSessionsChangedListener(oturumDinleyici, dinleyici, handler);
+            bildirimIzniVar = true;
+        } catch (SecurityException e) {
+            bildirimIzniVar = false;
+        }
+        oturumlariYenile();
+    }
+
+    private void muzikDurdur() {
+        try {
+            oturumYoneticisi.removeOnActiveSessionsChangedListener(oturumDinleyici);
+        } catch (Exception ignored) {
+        }
+        if (aktif != null) {
+            aktif.unregisterCallback(medyaGeriCagri);
+            aktif = null;
+        }
+    }
+
+    private void oturumlariYenile() {
+        MediaController secilen = null;
+        if (bildirimIzniVar) {
+            try {
+                List<MediaController> liste = oturumYoneticisi.getActiveSessions(dinleyici);
+                for (MediaController mc : liste) {
+                    PlaybackState s = mc.getPlaybackState();
+                    if (s != null && s.getState() == PlaybackState.STATE_PLAYING) {
+                        secilen = mc;
+                        break;
+                    }
+                }
+                if (secilen == null && !liste.isEmpty()) secilen = liste.get(0);
+            } catch (SecurityException e) {
+                bildirimIzniVar = false;
+            }
+        }
+        if (aktif != null) aktif.unregisterCallback(medyaGeriCagri);
+        aktif = secilen;
+        if (aktif != null) aktif.registerCallback(medyaGeriCagri, handler);
+        muzikGoster();
+    }
+
+    private void muzikGoster() {
+        if (!bildirimIzniVar) {
+            kaynak.setText("İzin gerekli");
+            sarki.setText("Çalan şarkıyı görmek için dokun");
+            sanatci.setText("Bildirim erişimi → Araç Ekranı'nı aç");
+            kapak.setImageResource(R.drawable.ic_muzik);
+            oynat.setText("▶");
+            sureleriSifirla();
+            return;
+        }
+        if (aktif == null) {
+            kaynak.setText("Müzik");
+            sarki.setText("Şu an çalan yok");
+            sanatci.setText("");
+            kapak.setImageResource(R.drawable.ic_muzik);
+            oynat.setText("▶");
+            sureleriSifirla();
+            return;
+        }
+
+        kaynak.setText(uygulamaAdi(aktif.getPackageName()));
+        MediaMetadata m = aktif.getMetadata();
+        String baslik = null, kisi = null;
+        Bitmap resim = null;
+        if (m != null) {
+            baslik = m.getString(MediaMetadata.METADATA_KEY_TITLE);
+            kisi = m.getString(MediaMetadata.METADATA_KEY_ARTIST);
+            if (kisi == null) kisi = m.getString(MediaMetadata.METADATA_KEY_ALBUM_ARTIST);
+            resim = m.getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART);
+            if (resim == null) resim = m.getBitmap(MediaMetadata.METADATA_KEY_ART);
+            if (resim == null) resim = m.getBitmap(MediaMetadata.METADATA_KEY_DISPLAY_ICON);
+        }
+        sarki.setText(baslik != null ? baslik : "Bilinmeyen parça");
+        sanatci.setText(kisi != null ? kisi : "");
+        if (resim != null) kapak.setImageBitmap(resim);
+        else kapak.setImageResource(R.drawable.ic_muzik);
+
+        PlaybackState s = aktif.getPlaybackState();
+        boolean caliyor = s != null && s.getState() == PlaybackState.STATE_PLAYING;
+        oynat.setText(caliyor ? "❚❚" : "▶");
+        ilerlemeGuncelle();
+    }
+
+    private void ilerlemeGuncelle() {
+        if (aktif == null) return;
+        MediaMetadata m = aktif.getMetadata();
+        PlaybackState s = aktif.getPlaybackState();
+        long sure = m != null ? m.getLong(MediaMetadata.METADATA_KEY_DURATION) : 0;
+        if (s == null || sure <= 0) {
+            sureleriSifirla();
+            return;
+        }
+        long konumMs = s.getPosition();
+        if (s.getState() == PlaybackState.STATE_PLAYING) {
+            konumMs += (long) ((SystemClock.elapsedRealtime() - s.getLastPositionUpdateTime())
+                    * s.getPlaybackSpeed());
+        }
+        konumMs = Math.max(0, Math.min(konumMs, sure));
+        ilerleme.setProgress((int) (konumMs * 1000 / sure));
+        gecen.setText(sureYaz(konumMs));
+        toplam.setText(sureYaz(sure));
+    }
+
+    private void sureleriSifirla() {
+        ilerleme.setProgress(0);
+        gecen.setText("");
+        toplam.setText("");
+    }
+
+    private static String sureYaz(long ms) {
+        long sn = ms / 1000;
+        return String.format(Locale.US, "%d:%02d", sn / 60, sn % 60);
+    }
+
+    private String uygulamaAdi(String paket) {
+        try {
+            PackageManager pm = getPackageManager();
+            return String.valueOf(pm.getApplicationLabel(pm.getApplicationInfo(paket, 0)));
+        } catch (Exception e) {
+            return "Müzik";
+        }
+    }
+
+    private void muzikUygulamasiniAc() {
+        if (!bildirimIzniVar) {
+            try {
+                startActivity(new Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS));
+            } catch (Exception e) {
+                Toast.makeText(this, "Ayarlar → Bildirim erişimi bölümünden izin ver",
+                        Toast.LENGTH_LONG).show();
+            }
+            return;
+        }
+        if (aktif != null) Kisayollar.baslat(this, aktif.getPackageName());
+    }
+
+    private void onceki() {
+        if (aktif != null) aktif.getTransportControls().skipToPrevious();
+        else medyaTusu(KeyEvent.KEYCODE_MEDIA_PREVIOUS);
+    }
+
+    private void sonraki() {
+        if (aktif != null) aktif.getTransportControls().skipToNext();
+        else medyaTusu(KeyEvent.KEYCODE_MEDIA_NEXT);
+    }
+
+    private void oynatDuraklat() {
+        if (aktif != null) {
+            PlaybackState s = aktif.getPlaybackState();
+            if (s != null && s.getState() == PlaybackState.STATE_PLAYING) {
+                aktif.getTransportControls().pause();
+            } else {
+                aktif.getTransportControls().play();
+            }
+        } else {
+            medyaTusu(KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE);
+        }
+    }
+
+    private void medyaTusu(int kod) {
+        AudioManager am = (AudioManager) getSystemService(AUDIO_SERVICE);
+        am.dispatchMediaKeyEvent(new KeyEvent(KeyEvent.ACTION_DOWN, kod));
+        am.dispatchMediaKeyEvent(new KeyEvent(KeyEvent.ACTION_UP, kod));
+    }
+
+    // ---------------- Konum (hava durumu için) ----------------
 
     private boolean izinVar() {
         return checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION)
@@ -153,11 +361,11 @@ public class MainActivity extends Activity implements LocationListener {
     private void konumBaslat() {
         if (!izinVar()) return;
         try {
-            if (konum.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
-                konum.requestLocationUpdates(LocationManager.GPS_PROVIDER, 1000, 0, this);
-            }
             if (konum.isProviderEnabled(LocationManager.NETWORK_PROVIDER)) {
                 konum.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 60000, 500, this);
+            }
+            if (konum.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
+                konum.requestLocationUpdates(LocationManager.GPS_PROVIDER, 60000, 500, this);
             }
         } catch (SecurityException | IllegalArgumentException ignored) {
         }
@@ -165,13 +373,6 @@ public class MainActivity extends Activity implements LocationListener {
 
     @Override
     public void onLocationChanged(Location l) {
-        if (LocationManager.GPS_PROVIDER.equals(l.getProvider())) {
-            sonKonumZamani = SystemClock.elapsedRealtime();
-            float kmsa = l.hasSpeed() ? l.getSpeed() * 3.6f : 0f;
-            if (kmsa < 2f) kmsa = 0f;
-            hiz.setText(String.valueOf(Math.round(kmsa)));
-        }
-        // Hava durumunu 10 km'den fazla yer değiştirince de yenile
         if (sonHavaKonumu == null || sonHavaKonumu.distanceTo(l) > 10000) {
             sonHavaZamani = 0;
         }
@@ -203,7 +404,7 @@ public class MainActivity extends Activity implements LocationListener {
         long simdi = System.currentTimeMillis();
         if (!elle && sonHavaZamani != 0 && simdi - sonHavaZamani < HAVA_ARALIGI_MS) return;
 
-        Location l = enIyiKonum();
+        final Location l = enIyiKonum();
         if (l == null) {
             if (elle) havaDurum.setText("Konum bekleniyor");
             return;
@@ -264,21 +465,6 @@ public class MainActivity extends Activity implements LocationListener {
         return "—";
     }
 
-    // ---------------- Navigasyon & müzik ----------------
-
-    private void navigasyonAc() {
-        for (String p : NAV_PAKETLERI) {
-            if (Kisayollar.baslat(this, p)) return;
-        }
-        Toast.makeText(this, "Navigasyon uygulaması bulunamadı", Toast.LENGTH_SHORT).show();
-    }
-
-    private void medyaTusu(int kod) {
-        AudioManager am = (AudioManager) getSystemService(AUDIO_SERVICE);
-        am.dispatchMediaKeyEvent(new KeyEvent(KeyEvent.ACTION_DOWN, kod));
-        am.dispatchMediaKeyEvent(new KeyEvent(KeyEvent.ACTION_UP, kod));
-    }
-
     // ---------------- Kısayollar (dok) ----------------
 
     private void dokuKur() {
@@ -290,11 +476,16 @@ public class MainActivity extends Activity implements LocationListener {
         for (String paket : paketler) {
             Drawable ikonTmp;
             CharSequence adTmp;
-            try {
-                ikonTmp = pm.getApplicationIcon(paket);
-                adTmp = pm.getApplicationLabel(pm.getApplicationInfo(paket, 0));
-            } catch (PackageManager.NameNotFoundException e) {
-                continue; // kaldırılmış uygulama
+            if (Kisayollar.NAV.equals(paket)) {
+                ikonTmp = getDrawable(R.drawable.ic_nav);
+                adTmp = "Navigasyon";
+            } else {
+                try {
+                    ikonTmp = pm.getApplicationIcon(paket);
+                    adTmp = pm.getApplicationLabel(pm.getApplicationInfo(paket, 0));
+                } catch (PackageManager.NameNotFoundException e) {
+                    continue; // kaldırılmış uygulama
+                }
             }
             final Drawable ikon = ikonTmp;
             final CharSequence ad = adTmp;
@@ -331,7 +522,9 @@ public class MainActivity extends Activity implements LocationListener {
 
             kutu.setOnClickListener(v -> {
                 if (!Kisayollar.baslat(this, paket)) {
-                    Toast.makeText(this, "Açılamadı", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(this,
+                            Kisayollar.NAV.equals(paket) ? "Navigasyon uygulaması bulunamadı" : "Açılamadı",
+                            Toast.LENGTH_SHORT).show();
                 }
             });
             kutu.setOnLongClickListener(v -> {

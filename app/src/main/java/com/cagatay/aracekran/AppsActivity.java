@@ -93,6 +93,11 @@ public class AppsActivity extends Activity {
             }
             Collator tr = Collator.getInstance(new Locale("tr", "TR"));
             liste.sort((a, b) -> tr.compare(a.ad, b.ad));
+            Uygulama nav = new Uygulama();
+            nav.paket = Kisayollar.NAV;
+            nav.ad = "Navigasyon";
+            nav.ikon = getDrawable(R.drawable.ic_nav);
+            liste.add(0, nav);
             ana.post(() -> {
                 uygulamalar.clear();
                 uygulamalar.addAll(liste);
