@@ -39,7 +39,7 @@ final class Kisayollar {
             "Spotify",
             "YT Music",
             "Telefon",
-            "Kolay bağlantı",
+            "@carplay",
             "Radyo",
             "Ayarlar"
     };
@@ -61,7 +61,10 @@ final class Kisayollar {
                 for (ResolveInfo ri : uygulamalar) {
                     String ad = String.valueOf(ri.loadLabel(pm)).trim();
                     String paket = ri.activityInfo.packageName;
-                    if (ad.equalsIgnoreCase(hedef) && !liste.contains(paket)
+                    boolean uyar = hedef.equals("@carplay")
+                            ? carplayMi(ad, paket)
+                            : ad.equalsIgnoreCase(hedef);
+                    if (uyar && !liste.contains(paket)
                             && !paket.equals(c.getPackageName())) {
                         liste.add(paket);
                         break;
@@ -75,6 +78,16 @@ final class Kisayollar {
             if (!p.isEmpty()) liste.add(p);
         }
         return liste;
+    }
+
+    /** CarPlay / telefon bağlantı uygulamaları ünitelerde farklı adlarla gelir. */
+    private static boolean carplayMi(String ad, String paket) {
+        String a = ad.toLowerCase(new java.util.Locale("tr", "TR"));
+        String p = paket.toLowerCase(java.util.Locale.ROOT);
+        return a.contains("kolay") || a.contains("carplay") || a.contains("zlink")
+                || a.contains("autokit") || a.contains("easyconn") || a.contains("tlink")
+                || p.contains("zlink") || p.contains("carplay") || p.contains("easyconn")
+                || p.contains("autokit") || p.contains("tlink");
     }
 
     static void yaz(Context c, List<String> liste) {
