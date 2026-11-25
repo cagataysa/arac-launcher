@@ -4,6 +4,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
+import android.content.pm.ResolveInfo;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -22,19 +23,25 @@ final class Kisayollar {
     /** Navigasyon: sırayla denenir, ilk yüklü olan açılır. */
     static final String[] NAV_PAKETLERI = {
             "com.google.android.apps.maps",
+            "com.nng.igo.primong.igoworld",
+            "com.nng.igoprimoisrael.javaclient",
             "ru.yandex.yandexnavi",
             "ru.yandex.yandexmaps",
             "com.waze",
             "com.here.app.maps"
     };
 
-    private static final String[] VARSAYILAN = {
-            NAV,
-            "com.spotify.music",
-            "com.google.android.apps.youtube.music",
-            "com.whatsapp",
-            "com.android.chrome",
-            "com.android.settings"
+    /**
+     * İlk açılışta dok'a konacaklar. Ünitenin kendi uygulamalarının paket adları
+     * üreticiye göre değiştiği için ekranda görünen adlarıyla eşleştirilir.
+     */
+    private static final String[] VARSAYILAN_ADLAR = {
+            "Spotify",
+            "YT Music",
+            "Telefon",
+            "Kolay bağlantı",
+            "Radyo",
+            "Ayarlar"
     };
 
     private Kisayollar() {}
@@ -44,10 +51,22 @@ final class Kisayollar {
         String kayit = sp.getString(ANAHTAR, null);
         List<String> liste = new ArrayList<>();
         if (kayit == null) {
+            liste.add(NAV);
             PackageManager pm = c.getPackageManager();
-            for (String p : VARSAYILAN) {
+            Intent sorgu = new Intent(Intent.ACTION_MAIN);
+            sorgu.addCategory(Intent.CATEGORY_LAUNCHER);
+            List<ResolveInfo> uygulamalar = pm.queryIntentActivities(sorgu, 0);
+            for (String hedef : VARSAYILAN_ADLAR) {
                 if (liste.size() >= EN_FAZLA) break;
-                if (p.equals(NAV) || pm.getLaunchIntentForPackage(p) != null) liste.add(p);
+                for (ResolveInfo ri : uygulamalar) {
+                    String ad = String.valueOf(ri.loadLabel(pm)).trim();
+                    String paket = ri.activityInfo.packageName;
+                    if (ad.equalsIgnoreCase(hedef) && !liste.contains(paket)
+                            && !paket.equals(c.getPackageName())) {
+                        liste.add(paket);
+                        break;
+                    }
+                }
             }
             yaz(c, liste);
             return liste;

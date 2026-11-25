@@ -43,4 +43,10 @@
         android:text="Ana ekrana dön"
         android:textColor="@color/yazi"
         android:textSize="22sp" />
+
+    <!-- Klima çubuğu için boşluk -->
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="0.22" />
 </LinearLayout>

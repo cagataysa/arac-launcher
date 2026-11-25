@@ -5,7 +5,10 @@
     android:layout_height="match_parent"
     android:background="@color/perde"
     android:orientation="vertical"
-    android:padding="20dp">
+    android:paddingStart="16dp"
+    android:paddingTop="12dp"
+    android:paddingEnd="16dp"
+    android:paddingBottom="0dp">
 
     <!-- Saat / tarih + hava durumu -->
     <LinearLayout
@@ -255,4 +258,10 @@
         android:padding="8dp"
         android:text="Tüm uygulamalar"
         android:textColor="@color/yazi" />
+
+    <!-- Ünitenin altta her zaman duran klima çubuğu için boşluk -->
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1.8" />
 </LinearLayout>
