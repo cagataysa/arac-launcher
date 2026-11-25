@@ -1,0 +1,204 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="20dp">
+
+    <!-- Saat / tarih + hava durumu -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="2"
+        android:orientation="horizontal">
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="3"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/saat"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="3"
+                android:autoSizeMaxTextSize="140sp"
+                android:autoSizeMinTextSize="24sp"
+                android:autoSizeTextType="uniform"
+                android:fontFamily="sans-serif-light"
+                android:gravity="start|bottom"
+                android:maxLines="1"
+                android:text="00:00"
+                android:textColor="@color/yazi" />
+
+            <TextView
+                android:id="@+id/tarih"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                android:autoSizeMaxTextSize="30sp"
+                android:autoSizeMinTextSize="12sp"
+                android:autoSizeTextType="uniform"
+                android:gravity="start|top"
+                android:maxLines="1"
+                android:textColor="@color/soluk" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/havaKart"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_marginStart="12dp"
+            android:layout_weight="2"
+            android:background="@drawable/kart_bg"
+            android:gravity="center"
+            android:orientation="vertical"
+            android:padding="12dp">
+
+            <TextView
+                android:id="@+id/sicaklik"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="2"
+                android:autoSizeMaxTextSize="64sp"
+                android:autoSizeMinTextSize="16sp"
+                android:autoSizeTextType="uniform"
+                android:gravity="center"
+                android:maxLines="1"
+                android:text="--°"
+                android:textColor="@color/yazi" />
+
+            <TextView
+                android:id="@+id/havaDurum"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                android:autoSizeMaxTextSize="22sp"
+                android:autoSizeMinTextSize="10sp"
+                android:autoSizeTextType="uniform"
+                android:gravity="center"
+                android:maxLines="1"
+                android:text="Hava durumu"
+                android:textColor="@color/soluk" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <!-- Hız -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_marginTop="14dp"
+        android:layout_weight="3"
+        android:background="@drawable/kart_bg"
+        android:gravity="center"
+        android:orientation="vertical"
+        android:padding="10dp">
+
+        <TextView
+            android:id="@+id/hiz"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="4"
+            android:autoSizeMaxTextSize="220sp"
+            android:autoSizeMinTextSize="30sp"
+            android:autoSizeTextType="uniform"
+            android:fontFamily="sans-serif-medium"
+            android:gravity="center"
+            android:maxLines="1"
+            android:text="--"
+            android:textColor="@color/yazi" />
+
+        <TextView
+            android:id="@+id/hizBirim"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:autoSizeMaxTextSize="26sp"
+            android:autoSizeMinTextSize="10sp"
+            android:autoSizeTextType="uniform"
+            android:gravity="center"
+            android:maxLines="1"
+            android:text="km/sa"
+            android:textColor="@color/soluk" />
+    </LinearLayout>
+
+    <!-- Navigasyon -->
+    <TextView
+        android:id="@+id/navigasyon"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_marginTop="14dp"
+        android:layout_weight="1.2"
+        android:autoSizeMaxTextSize="40sp"
+        android:autoSizeMinTextSize="14sp"
+        android:autoSizeTextType="uniform"
+        android:background="@drawable/nav_bg"
+        android:clickable="true"
+        android:focusable="true"
+        android:fontFamily="sans-serif-medium"
+        android:gravity="center"
+        android:maxLines="1"
+        android:padding="12dp"
+        android:text="Navigasyon"
+        android:textColor="#08121C" />
+
+    <!-- Müzik -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_marginTop="14dp"
+        android:layout_weight="1"
+        android:orientation="horizontal">
+
+        <TextView
+            android:id="@+id/onceki"
+            style="@style/MedyaButon"
+            android:layout_marginEnd="7dp"
+            android:text="⏮" />
+
+        <TextView
+            android:id="@+id/oynat"
+            style="@style/MedyaButon"
+            android:layout_marginStart="7dp"
+            android:layout_marginEnd="7dp"
+            android:text="⏯" />
+
+        <TextView
+            android:id="@+id/sonraki"
+            style="@style/MedyaButon"
+            android:layout_marginStart="7dp"
+            android:text="⏭" />
+    </LinearLayout>
+
+    <!-- Kısayollar -->
+    <LinearLayout
+        android:id="@+id/dok"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_marginTop="14dp"
+        android:layout_weight="1.4"
+        android:background="@drawable/kart_bg"
+        android:gravity="center"
+        android:orientation="horizontal"
+        android:padding="6dp" />
+
+    <!-- Tüm uygulamalar -->
+    <TextView
+        android:id="@+id/uygulamalar"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_marginTop="14dp"
+        android:layout_weight="0.7"
+        android:autoSizeMaxTextSize="26sp"
+        android:autoSizeMinTextSize="12sp"
+        android:autoSizeTextType="uniform"
+        android:background="@drawable/buton_bg"
+        android:clickable="true"
+        android:focusable="true"
+        android:gravity="center"
+        android:maxLines="1"
+        android:padding="8dp"
+        android:text="Tüm uygulamalar"
+        android:textColor="@color/yazi" />
+</LinearLayout>

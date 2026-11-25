@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="arka">#0B0F14</color>
+    <color name="kart">#161C24</color>
+    <color name="kart_basili">#26313F</color>
+    <color name="vurgu">#3DA9FC</color>
+    <color name="yazi">#F2F5F8</color>
+    <color name="soluk">#8A97A6</color>
+
+    <style name="AracTema" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/arka</item>
+        <item name="android:statusBarColor">@color/arka</item>
+        <item name="android:navigationBarColor">@color/arka</item>
+        <item name="android:colorAccent">@color/vurgu</item>
+        <item name="android:textColor">@color/yazi</item>
+    </style>
+</resources>
