@@ -2,6 +2,14 @@ package com.cagatay.aracekran;
 
 import android.Manifest;
 import android.app.Activity;
+import android.app.AlertDialog;
+import android.app.Notification;
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.IntentFilter;
+import android.media.session.MediaSession;
+import android.os.Build;
+import android.service.notification.StatusBarNotification;
 import android.content.ComponentName;
 import android.content.Intent;
 import android.content.pm.PackageManager;
@@ -36,6 +44,7 @@ import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.text.SimpleDateFormat;
+import java.util.ArrayDeque;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
@@ -66,6 +75,41 @@ public class MainActivity extends Activity implements LocationListener {
     private ComponentName dinleyici;
     private MediaController aktif;
     private boolean bildirimIzniVar = false;
+
+    // Medya oturumu açmayan Bluetooth müzik uygulamaları için yedek bilgi
+    private String harBaslik, harKisi, harKaynak;
+    private long harZaman = 0;
+    private static final long HAR_GECERLILIK_MS = 15 * 60 * 1000L;
+    private final ArrayDeque<String> sonYayinlar = new ArrayDeque<>();
+    private boolean aliciKayitli = false;
+
+    private static final String[] YAYIN_EYLEMLERI = {
+            "android.bluetooth.avrcp-controller.profile.action.TRACK_EVENT",
+            "android.bluetooth.avrcp-controller.profile.action.PLAYER_SETTING",
+            "com.android.music.metachanged",
+            "com.android.music.playstatechanged",
+            "com.android.music.queuechanged",
+            "com.spotify.music.metadatachanged",
+            "com.htc.music.metachanged",
+            "com.miui.player.metachanged",
+            "com.sec.android.app.music.metachanged",
+            "com.syu.music.info",
+            "com.syu.bt.music",
+            "com.microntek.bt.music",
+            "com.microntek.music.report",
+            "com.fyt.bt.music",
+            "com.ts.bt.music",
+            "android.intent.action.BT_MUSIC_INFO",
+            "com.android.bluetooth.music.id3",
+            "com.nwd.bt.music.id3"
+    };
+
+    private final BroadcastReceiver yayinAlici = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context c, Intent i) {
+            yayinIsle(i);
+        }
+    };
 
     private final MediaController.Callback medyaGeriCagri = new MediaController.Callback() {
         @Override public void onMetadataChanged(MediaMetadata m) { muzikGoster(); }
@@ -115,6 +159,10 @@ public class MainActivity extends Activity implements LocationListener {
         oynat.setOnClickListener(v -> oynatDuraklat());
         findViewById(R.id.sonraki).setOnClickListener(v -> sonraki());
         findViewById(R.id.sarkiBilgi).setOnClickListener(v -> muzikUygulamasiniAc());
+        findViewById(R.id.sarkiBilgi).setOnLongClickListener(v -> {
+            teshisGoster();
+            return true;
+        });
         findViewById(R.id.uygulamalar).setOnClickListener(v ->
                 startActivity(new Intent(this, AppsActivity.class)));
         findViewById(R.id.havaKart).setOnClickListener(v -> {
@@ -129,9 +177,16 @@ public class MainActivity extends Activity implements LocationListener {
         });
 
         if (!izinVar()) {
-            requestPermissions(new String[]{
-                    Manifest.permission.ACCESS_FINE_LOCATION,
-                    Manifest.permission.ACCESS_COARSE_LOCATION}, IZIN_KODU);
+            if (Build.VERSION.SDK_INT >= 31) {
+                requestPermissions(new String[]{
+                        Manifest.permission.ACCESS_FINE_LOCATION,
+                        Manifest.permission.ACCESS_COARSE_LOCATION,
+                        Manifest.permission.BLUETOOTH_CONNECT}, IZIN_KODU);
+            } else {
+                requestPermissions(new String[]{
+                        Manifest.permission.ACCESS_FINE_LOCATION,
+                        Manifest.permission.ACCESS_COARSE_LOCATION}, IZIN_KODU);
+            }
         }
     }
 
@@ -183,6 +238,20 @@ public class MainActivity extends Activity implements LocationListener {
     // ---------------- Çalan müzik ----------------
 
     private void muzikBaslat() {
+        MedyaDinleyici.dinleyen = () -> handler.post(this::oturumlariYenile);
+        if (!aliciKayitli) {
+            IntentFilter f = new IntentFilter();
+            for (String e : YAYIN_EYLEMLERI) f.addAction(e);
+            try {
+                if (Build.VERSION.SDK_INT >= 33) {
+                    registerReceiver(yayinAlici, f, Context.RECEIVER_EXPORTED);
+                } else {
+                    registerReceiver(yayinAlici, f);
+                }
+                aliciKayitli = true;
+            } catch (Exception ignored) {
+            }
+        }
         try {
             oturumYoneticisi.addOnActiveSessionsChangedListener(oturumDinleyici, dinleyici, handler);
             bildirimIzniVar = true;
@@ -193,6 +262,14 @@ public class MainActivity extends Activity implements LocationListener {
     }
 
     private void muzikDurdur() {
+        MedyaDinleyici.dinleyen = null;
+        if (aliciKayitli) {
+            try {
+                unregisterReceiver(yayinAlici);
+            } catch (Exception ignored) {
+            }
+            aliciKayitli = false;
+        }
         try {
             oturumYoneticisi.removeOnActiveSessionsChangedListener(oturumDinleyici);
         } catch (Exception ignored) {
@@ -220,6 +297,8 @@ public class MainActivity extends Activity implements LocationListener {
                 bildirimIzniVar = false;
             }
         }
+        if (secilen == null) secilen = bildirimdenOturum();
+        if (secilen == null) bildirimdenMetin();
         if (aktif != null) aktif.unregisterCallback(medyaGeriCagri);
         aktif = secilen;
         if (aktif != null) aktif.registerCallback(medyaGeriCagri, handler);
@@ -233,6 +312,15 @@ public class MainActivity extends Activity implements LocationListener {
             sanatci.setText("Bildirim erişimi → Araç Ekranı'nı aç");
             kapak.setImageResource(R.drawable.ic_muzik);
             oynat.setText("▶");
+            sureleriSifirla();
+            return;
+        }
+        if (aktif == null && harBaslik != null
+                && System.currentTimeMillis() - harZaman < HAR_GECERLILIK_MS) {
+            kaynak.setText(harKaynak != null ? harKaynak : "Bluetooth müzik");
+            sarki.setText(harBaslik);
+            sanatci.setText(harKisi != null ? harKisi : "");
+            kapak.setImageResource(R.drawable.ic_muzik);
             sureleriSifirla();
             return;
         }
@@ -287,6 +375,132 @@ public class MainActivity extends Activity implements LocationListener {
         ilerleme.setProgress((int) (konumMs * 1000 / sure));
         gecen.setText(sureYaz(konumMs));
         toplam.setText(sureYaz(sure));
+    }
+
+    /** Medya bildirimindeki oturum anahtarından denetleyici oluştur. */
+    private MediaController bildirimdenOturum() {
+        for (StatusBarNotification sbn : MedyaDinleyici.bildirimler()) {
+            Notification n = sbn.getNotification();
+            if (n == null || n.extras == null) continue;
+            Object t = n.extras.get(Notification.EXTRA_MEDIA_SESSION);
+            if (t instanceof MediaSession.Token) {
+                try {
+                    return new MediaController(this, (MediaSession.Token) t);
+                } catch (Exception ignored) {
+                }
+            }
+        }
+        return null;
+    }
+
+    /** Medya oturumu yoksa: müzik bildiriminin başlık/metninden şarkıyı al. */
+    private void bildirimdenMetin() {
+        for (StatusBarNotification sbn : MedyaDinleyici.bildirimler()) {
+            if (sbn.getPackageName().equals(getPackageName())) continue;
+            if (!MedyaDinleyici.medyaBildirimiMi(sbn)) continue;
+            Bundle x = sbn.getNotification().extras;
+            if (x == null) continue;
+            CharSequence b = x.getCharSequence(Notification.EXTRA_TITLE);
+            CharSequence t = x.getCharSequence(Notification.EXTRA_TEXT);
+            if (b == null || b.length() == 0) continue;
+            harBaslik = b.toString();
+            harKisi = t != null ? t.toString() : null;
+            harKaynak = uygulamaAdi(sbn.getPackageName());
+            harZaman = System.currentTimeMillis();
+            return;
+        }
+    }
+
+    /** Ünitelerin yaydığı şarkı bilgisi sinyallerini işle. */
+    private void yayinIsle(Intent i) {
+        String eylem = String.valueOf(i.getAction());
+        StringBuilder ozet = new StringBuilder(eylem);
+        Bundle x = i.getExtras();
+        String baslik = null, kisi = null;
+        if (x != null) {
+            for (String k : x.keySet()) {
+                Object v = x.get(k);
+                ozet.append("\n   ").append(k).append(" = ").append(v);
+                if (v instanceof MediaMetadata) {
+                    MediaMetadata m = (MediaMetadata) v;
+                    baslik = m.getString(MediaMetadata.METADATA_KEY_TITLE);
+                    kisi = m.getString(MediaMetadata.METADATA_KEY_ARTIST);
+                }
+            }
+            if (baslik == null) baslik = ilkMetin(x, "track", "title", "name", "song", "songname", "id3_title");
+            if (kisi == null) kisi = ilkMetin(x, "artist", "singer", "id3_artist");
+        }
+        synchronized (sonYayinlar) {
+            sonYayinlar.addFirst(new SimpleDateFormat("HH:mm:ss", TR).format(new Date()) + "  " + ozet);
+            while (sonYayinlar.size() > 6) sonYayinlar.removeLast();
+        }
+        if (baslik != null && !baslik.isEmpty()) {
+            harBaslik = baslik;
+            harKisi = kisi;
+            harKaynak = eylem.contains("bluetooth") || eylem.contains("bt") ? "Bluetooth müzik" : "Müzik";
+            harZaman = System.currentTimeMillis();
+            if (aktif == null) muzikGoster();
+        }
+    }
+
+    private static String ilkMetin(Bundle x, String... anahtarlar) {
+        for (String k : anahtarlar) {
+            Object v = x.get(k);
+            if (v != null && !String.valueOf(v).isEmpty()) return String.valueOf(v);
+        }
+        return null;
+    }
+
+    /** Müzik kartına uzun basınca: neyin görüldüğünü göster (sorun tespiti için). */
+    private void teshisGoster() {
+        StringBuilder sb = new StringBuilder();
+        sb.append("Bildirim erişimi: ").append(bildirimIzniVar ? "VAR" : "YOK").append('\n');
+        sb.append("Dinleyici bağlı: ").append(MedyaDinleyici.ornek != null ? "EVET" : "HAYIR").append("\n\n");
+
+        sb.append("Medya oturumları:\n");
+        try {
+            List<MediaController> liste = oturumYoneticisi.getActiveSessions(dinleyici);
+            if (liste.isEmpty()) sb.append("   (yok)\n");
+            for (MediaController mc : liste) {
+                PlaybackState st = mc.getPlaybackState();
+                sb.append("   ").append(mc.getPackageName())
+                        .append("  durum=").append(st != null ? st.getState() : -1).append('\n');
+            }
+        } catch (Exception e) {
+            sb.append("   okunamadı: ").append(e.getClass().getSimpleName()).append('\n');
+        }
+
+        sb.append("\nBildirimler:\n");
+        StatusBarNotification[] b = MedyaDinleyici.bildirimler();
+        if (b.length == 0) sb.append("   (yok)\n");
+        for (StatusBarNotification sbn : b) {
+            Bundle x = sbn.getNotification().extras;
+            sb.append("   ").append(sbn.getPackageName());
+            if (x != null) {
+                sb.append(" | ").append(x.getCharSequence(Notification.EXTRA_TITLE))
+                        .append(" | ").append(x.getCharSequence(Notification.EXTRA_TEXT));
+            }
+            sb.append('\n');
+        }
+
+        sb.append("\nSon sinyaller:\n");
+        synchronized (sonYayinlar) {
+            if (sonYayinlar.isEmpty()) sb.append("   (yok)\n");
+            for (String y : sonYayinlar) sb.append("   ").append(y).append('\n');
+        }
+
+        TextView tv = new TextView(this);
+        tv.setText(sb.toString());
+        tv.setTextIsSelectable(true);
+        tv.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14);
+        tv.setPadding(dp(20), dp(12), dp(20), dp(12));
+        android.widget.ScrollView sv = new android.widget.ScrollView(this);
+        sv.addView(tv);
+        new AlertDialog.Builder(this)
+                .setTitle("Müzik teşhis")
+                .setView(sv)
+                .setPositiveButton("Kapat", null)
+                .show();
     }
 
     private void sureleriSifirla() {
