@@ -192,6 +192,9 @@ public class MainActivity extends Activity implements LocationListener {
         // Kapak kare olsun: yüksekliği kadar genişlik
         kapak.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or, ob) -> {
             int h = b - t;
+            View ebeveyn = (View) v.getParent();
+            int sinir = ebeveyn.getWidth() - ebeveyn.getPaddingLeft() - ebeveyn.getPaddingRight();
+            if (sinir > 0) h = Math.min(h, sinir);
             if (h > 0 && v.getLayoutParams().width != h) {
                 v.getLayoutParams().width = h;
                 v.post(v::requestLayout);
@@ -767,9 +770,9 @@ public class MainActivity extends Activity implements LocationListener {
 
     // ---------------- Kısayollar (dok) ----------------
 
-    private static final int SUTUN = 4, SATIR = 3;
+    private static final int SUTUN = 5, SATIR = 1;
 
-    /** İkon ızgarası: kısayollar (en fazla 11) + sonda "Tümü". */
+    /** Kısayollar: 4 büyük ikon + sonda "Tümü". */
     private void dokuKur() {
         dok.removeAllViews();
         PackageManager pm = getPackageManager();
@@ -937,21 +940,21 @@ public class MainActivity extends Activity implements LocationListener {
         kok.setBackgroundColor(gece ? 0xB8000000 : 0x29000000);
         ColorStateList kartT = ColorStateList.valueOf(kart);
         muzikKart.setBackgroundTintList(kartT);
+        dok.setBackgroundTintList(kartT);
         tusRenk = tus;
         kapak.setBackgroundTintList(ColorStateList.valueOf(kapakR));
 
-        oynat.setBackground(daire(vurgu));
-        oynat.setTextColor(0xFF07121C);
+
         navBtn.setBackground(daire(vurgu));
         telBtn.setBackground(daire(gece ? 0xFF24551A : 0xFF3B8A1E));
         ayrac.setBackgroundColor(gece ? 0xFF2A2E34 : 0x55FFFFFF);
 
-        ilerleme.setProgressTintList(ColorStateList.valueOf(vurgu));
+        ilerleme.setProgressTintList(ColorStateList.valueOf(yaziRenk));
         ilerleme.setProgressBackgroundTintList(ColorStateList.valueOf(iz));
         kaynak.setTextColor(vurgu);
         havaIkon.setColorFilter(yaziRenk);
 
-        for (TextView t : new TextView[]{saat, tarih, sicaklik, havaDurum, sarki, sonrakiV}) {
+        for (TextView t : new TextView[]{saat, tarih, sicaklik, havaDurum, sarki, oncekiV, oynat, sonrakiV}) {
             t.setTextColor(yaziRenk);
         }
         for (TextView t : new TextView[]{sanatci, gecen, toplam}) {

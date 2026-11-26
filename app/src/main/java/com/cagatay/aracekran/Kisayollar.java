@@ -12,9 +12,9 @@ import java.util.List;
 /** Ana ekrandaki kısayol (dok) listesini saklar. */
 final class Kisayollar {
 
-    static final int EN_FAZLA = 11;
+    static final int EN_FAZLA = 4;
     private static final String DOSYA = "ayarlar";
-    private static final String ANAHTAR = "izgara";
+    private static final String ANAHTAR = "dok4";
 
     /** İlk açılışta, cihazda yüklüyse dok'a konacak uygulamalar. */
     /** Dok'ta navigasyonu temsil eden özel anahtar. */
@@ -36,18 +36,11 @@ final class Kisayollar {
      * üreticiye göre değiştiği için ekranda görünen adlarıyla eşleştirilir.
      */
     private static final String[] VARSAYILAN_ADLAR = {
-            "Telefon",
             "YT Music",
             "Spotify",
+            "Telefon",
             "@carplay",
-            "Radyo",
-            "Haritalar",
-            "iGO Navigation",
-            "Video",
-            "Chrome",
-            "HD DVR",
-            "Galeri",
-            "Ayarlar"
+            "Radyo"
     };
 
     private Kisayollar() {}
