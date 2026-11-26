@@ -83,7 +83,7 @@ final class Kisayollar {
     static boolean carplayMi(String ad, String paket) {
         String a = ad.toLowerCase(new java.util.Locale("tr", "TR"));
         String p = paket.toLowerCase(java.util.Locale.ROOT);
-        return a.contains("kolay") || a.contains("carplay") || a.contains("zlink")
+        return a.startsWith("kolay b") || a.contains("carplay") || a.contains("zlink")
                 || a.contains("autokit") || a.contains("easyconn") || a.contains("tlink")
                 || p.contains("zlink") || p.contains("carplay") || p.contains("easyconn")
                 || p.contains("autokit") || p.contains("tlink");
