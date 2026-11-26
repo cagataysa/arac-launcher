@@ -82,6 +82,11 @@ public class MainActivity extends Activity implements LocationListener {
     private boolean gece = false;
     private int sonSaat = -1;
 
+    // Arama sırasında ünitenin arama çubuğu için alttaki boşluğu büyüt
+    private static final float BOSLUK_NORMAL = 0.75f, BOSLUK_ARAMA = 1.5f;
+    private View altBosluk;
+    private boolean aramaModu = false;
+
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final SimpleDateFormat saatFmt = new SimpleDateFormat("HH:mm", TR);
     private final SimpleDateFormat tarihFmt = new SimpleDateFormat("d MMMM EEEE", TR);
@@ -151,6 +156,7 @@ public class MainActivity extends Activity implements LocationListener {
                 temaUygula();
             }
             saat.setText(saatFmt.format(simdi));
+            aramaKontrol();
             tarih.setText(tarihFmt.format(simdi));
             ilerlemeGuncelle();
             handler.postDelayed(this, 1000);
@@ -177,6 +183,7 @@ public class MainActivity extends Activity implements LocationListener {
         ilerleme = findViewById(R.id.ilerleme);
         dok = findViewById(R.id.dok);
         kok = findViewById(R.id.kok);
+        altBosluk = findViewById(R.id.altBosluk);
         havaKart = findViewById(R.id.havaKart);
         muzikKart = findViewById(R.id.muzikKart);
         havaIkon = findViewById(R.id.havaIkon);
@@ -934,6 +941,30 @@ public class MainActivity extends Activity implements LocationListener {
         if (a.contains("chrome") || a.contains("tarayıcı") || a.contains("browser") || p.contains("chrome") || p.contains("browser"))
             return new int[]{0xFF2E8FE8, R.drawable.ic_g_web};
         return null;
+    }
+
+    private boolean aramaVar() {
+        try {
+            AudioManager am = (AudioManager) getSystemService(AUDIO_SERVICE);
+            int m = am.getMode();
+            if (m == AudioManager.MODE_IN_CALL || m == AudioManager.MODE_IN_COMMUNICATION
+                    || m == AudioManager.MODE_RINGTONE) return true;
+        } catch (Exception ignored) {
+        }
+        for (StatusBarNotification sbn : MedyaDinleyici.bildirimler()) {
+            Notification n = sbn.getNotification();
+            if (n != null && Notification.CATEGORY_CALL.equals(n.category)) return true;
+        }
+        return false;
+    }
+
+    private void aramaKontrol() {
+        boolean a = aramaVar();
+        if (a == aramaModu) return;
+        aramaModu = a;
+        LinearLayout.LayoutParams lp = (LinearLayout.LayoutParams) altBosluk.getLayoutParams();
+        lp.weight = a ? BOSLUK_ARAMA : BOSLUK_NORMAL;
+        altBosluk.setLayoutParams(lp);
     }
 
     private GradientDrawable daire(int renk) {
