@@ -102,6 +102,9 @@ public class MainActivity extends Activity implements LocationListener {
     private MediaController aktif;
     private boolean bildirimIzniVar = false;
 
+    // FYT ünitelerinde Bluetooth müzik bilgisi
+    private FytBt fyt;
+
     // Medya oturumu açmayan Bluetooth müzik uygulamaları için yedek bilgi
     private String harBaslik, harKisi, harKaynak;
     private long harZaman = 0;
@@ -212,6 +215,8 @@ public class MainActivity extends Activity implements LocationListener {
 
         konum = (LocationManager) getSystemService(LOCATION_SERVICE);
         oturumYoneticisi = (MediaSessionManager) getSystemService(MEDIA_SESSION_SERVICE);
+        fyt = new FytBt(this, this::muzikGoster);
+        fyt.baslat();
         dinleyici = new ComponentName(this, MedyaDinleyici.class);
 
         findViewById(R.id.onceki).setOnClickListener(v -> onceki());
@@ -279,6 +284,12 @@ public class MainActivity extends Activity implements LocationListener {
         } catch (Exception ignored) {
         }
         muzikDurdur();
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        if (fyt != null) fyt.durdur();
     }
 
     @Override
@@ -374,7 +385,26 @@ public class MainActivity extends Activity implements LocationListener {
         muzikGoster();
     }
 
+    /** Telefon Bluetooth'tan çalıyorsa ve ünitede başka bir oynatıcı çalmıyorsa FYT bilgisini göster. */
+    private boolean fytOnde() {
+        if (fyt == null || !fyt.bilgiVar()) return false;
+        if (aktif != null) {
+            PlaybackState s = aktif.getPlaybackState();
+            if (s != null && s.getState() == PlaybackState.STATE_PLAYING) return false;
+        }
+        return true;
+    }
+
     private void muzikGoster() {
+        if (fytOnde()) {
+            kaynak.setText("Bluetooth müzik");
+            sarki.setText(fyt.baslik);
+            sanatci.setText(fyt.sanatci != null ? fyt.sanatci : "");
+            kapak.setImageResource(R.drawable.ic_muzik);
+            oynat.setText(fyt.caliyor ? "❚❚" : "▶");
+            ilerlemeGuncelle();
+            return;
+        }
         if (!bildirimIzniVar) {
             kaynak.setText("İzin gerekli");
             sarki.setText("Çalan şarkıyı görmek için dokun");
@@ -427,6 +457,18 @@ public class MainActivity extends Activity implements LocationListener {
     }
 
     private void ilerlemeGuncelle() {
+        if (fytOnde()) {
+            long sure = fyt.sureMs;
+            if (sure <= 0) {
+                sureleriSifirla();
+                return;
+            }
+            long k = fyt.konum();
+            ilerleme.setProgress((int) (k * 1000 / sure));
+            gecen.setText(sureYaz(k));
+            toplam.setText(sureYaz(sure));
+            return;
+        }
         if (aktif == null) return;
         MediaMetadata m = aktif.getMetadata();
         PlaybackState s = aktif.getPlaybackState();
@@ -552,6 +594,13 @@ public class MainActivity extends Activity implements LocationListener {
             sb.append('\n');
         }
 
+        sb.append("\nFYT Bluetooth servisi: ").append(fyt != null ? fyt.durumNotu : "-").append('\n');
+        if (fyt != null) {
+            sb.append("   şarkı: ").append(fyt.baslik).append(" | ").append(fyt.sanatci)
+                    .append(" | çalıyor=").append(fyt.caliyor)
+                    .append(" | kaynak=").append(fyt.kaynakId).append('\n');
+        }
+
         sb.append("\nSon sinyaller:\n");
         synchronized (sonYayinlar) {
             if (sonYayinlar.isEmpty()) sb.append("   (yok)\n");
@@ -606,16 +655,28 @@ public class MainActivity extends Activity implements LocationListener {
     }
 
     private void onceki() {
+        if (fytOnde() || (aktif == null && fyt != null && fyt.bagli())) {
+            fyt.onceki();
+            return;
+        }
         if (aktif != null) aktif.getTransportControls().skipToPrevious();
         else medyaTusu(KeyEvent.KEYCODE_MEDIA_PREVIOUS);
     }
 
     private void sonraki() {
+        if (fytOnde() || (aktif == null && fyt != null && fyt.bagli())) {
+            fyt.sonraki();
+            return;
+        }
         if (aktif != null) aktif.getTransportControls().skipToNext();
         else medyaTusu(KeyEvent.KEYCODE_MEDIA_NEXT);
     }
 
     private void oynatDuraklat() {
+        if (fytOnde() || (aktif == null && fyt != null && fyt.bagli())) {
+            fyt.oynatDuraklat();
+            return;
+        }
         if (aktif != null) {
             PlaybackState s = aktif.getPlaybackState();
             if (s != null && s.getState() == PlaybackState.STATE_PLAYING) {
