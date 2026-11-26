@@ -3,6 +3,14 @@ package com.cagatay.aracekran;
 import android.Manifest;
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.app.WallpaperManager;
+import android.content.SharedPreferences;
+import android.content.res.ColorStateList;
+import android.graphics.drawable.GradientDrawable;
+import android.graphics.drawable.LayerDrawable;
+import android.location.Address;
+import android.location.Geocoder;
+import android.view.View;
 import android.app.Notification;
 import android.content.BroadcastReceiver;
 import android.content.Context;
@@ -45,6 +53,7 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.text.SimpleDateFormat;
 import java.util.ArrayDeque;
+import java.util.Calendar;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
@@ -60,6 +69,17 @@ public class MainActivity extends Activity implements LocationListener {
     private ImageView kapak;
     private ProgressBar ilerleme;
     private LinearLayout dok;
+    private View kok, havaKart, muzikKart, uygulamalarV;
+    private ImageView havaIkon, izgaraIkon;
+    private TextView uygulamalarYazi, oncekiV, sonrakiV;
+
+    // Tema
+    private static final int[] VURGU_RENKLERI = {0xFF3DA9FC, 0xFFE8452C, 0xFF2BB673, 0xFFF2A93B};
+    private static final String[] VURGU_ADLARI = {"Mavi", "Kırmızı", "Yeşil", "Turuncu"};
+    private int vurgu = 0xFF3DA9FC;
+    private int yaziRenk = 0xFFF2F5F8;
+    private boolean gece = false;
+    private int sonSaat = -1;
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final SimpleDateFormat saatFmt = new SimpleDateFormat("HH:mm", TR);
@@ -124,6 +144,11 @@ public class MainActivity extends Activity implements LocationListener {
         @Override
         public void run() {
             Date simdi = new Date();
+            int h = Calendar.getInstance().get(Calendar.HOUR_OF_DAY);
+            if (h != sonSaat) {
+                sonSaat = h;
+                temaUygula();
+            }
             saat.setText(saatFmt.format(simdi));
             tarih.setText(tarihFmt.format(simdi));
             ilerlemeGuncelle();
@@ -150,6 +175,15 @@ public class MainActivity extends Activity implements LocationListener {
         kapak.setClipToOutline(true);
         ilerleme = findViewById(R.id.ilerleme);
         dok = findViewById(R.id.dok);
+        kok = findViewById(R.id.kok);
+        havaKart = findViewById(R.id.havaKart);
+        muzikKart = findViewById(R.id.muzikKart);
+        uygulamalarV = findViewById(R.id.uygulamalar);
+        havaIkon = findViewById(R.id.havaIkon);
+        izgaraIkon = findViewById(R.id.izgaraIkon);
+        uygulamalarYazi = findViewById(R.id.uygulamalarYazi);
+        oncekiV = findViewById(R.id.onceki);
+        sonrakiV = findViewById(R.id.sonraki);
 
         konum = (LocationManager) getSystemService(LOCATION_SERVICE);
         oturumYoneticisi = (MediaSessionManager) getSystemService(MEDIA_SESSION_SERVICE);
@@ -163,8 +197,12 @@ public class MainActivity extends Activity implements LocationListener {
             teshisGoster();
             return true;
         });
-        findViewById(R.id.uygulamalar).setOnClickListener(v ->
+        uygulamalarV.setOnClickListener(v ->
                 startActivity(new Intent(this, AppsActivity.class)));
+        uygulamalarV.setOnLongClickListener(v -> {
+            ayarlarGoster();
+            return true;
+        });
         findViewById(R.id.havaKart).setOnClickListener(v -> {
             sonHavaZamani = 0;
             havaGuncelle(true);
@@ -175,6 +213,17 @@ public class MainActivity extends Activity implements LocationListener {
             duvarKagidiSec();
             return true;
         });
+
+        SharedPreferences sp = ayarlar();
+        if (!sp.getBoolean("duvarSoruldu", false)) {
+            sp.edit().putBoolean("duvarSoruldu", true).apply();
+            new AlertDialog.Builder(this)
+                    .setTitle("Duvar kağıdı")
+                    .setMessage("Kırmızı–mavi duvar kağıdı yüklensin mi? Sonradan \"Tüm uygulamalar\"a uzun basarak değiştirebilirsin.")
+                    .setPositiveButton("Yükle", (d, w) -> hazirDuvarKagidi())
+                    .setNegativeButton("Şimdi değil", null)
+                    .show();
+        }
 
         if (!izinVar()) {
             if (Build.VERSION.SDK_INT >= 31) {
@@ -194,8 +243,8 @@ public class MainActivity extends Activity implements LocationListener {
     protected void onResume() {
         super.onResume();
         handler.removeCallbacks(saniyelik);
+        sonSaat = -1;
         handler.post(saniyelik);
-        dokuKur();
         konumBaslat();
         havaGuncelle(false);
         muzikBaslat();
@@ -630,6 +679,7 @@ public class MainActivity extends Activity implements LocationListener {
 
         new Thread(() -> {
             String sicak = null, durum;
+            int kodH = -1;
             try {
                 URL url = new URL(String.format(Locale.US,
                         "https://api.open-meteo.com/v1/forecast?latitude=%.4f&longitude=%.4f"
@@ -647,21 +697,47 @@ public class MainActivity extends Activity implements LocationListener {
                 }
                 JSONObject cur = new JSONObject(sb.toString()).getJSONObject("current");
                 sicak = Math.round(cur.getDouble("temperature_2m")) + "°";
-                durum = havaMetni(cur.getInt("weather_code"));
+                kodH = cur.getInt("weather_code");
+                durum = havaMetni(kodH);
+                String sehir = sehirBul(enlem, boylam);
+                if (sehir != null) durum = sehir + " · " + durum;
             } catch (Exception e) {
                 durum = "İnternet yok";
             }
             final String s = sicak, d = durum;
+            final int kodSon = kodH;
             handler.post(() -> {
                 havaYukleniyor = false;
                 if (s != null) {
                     sicaklik.setText(s);
                     sonHavaZamani = System.currentTimeMillis();
                     sonHavaKonumu = l;
+                    havaIkon.setImageResource(havaIkonu(kodSon));
                 }
                 havaDurum.setText(d);
             });
         }).start();
+    }
+
+    private String sehirBul(double enlem, double boylam) {
+        try {
+            if (!Geocoder.isPresent()) return null;
+            List<Address> a = new Geocoder(this, TR).getFromLocation(enlem, boylam, 1);
+            if (a == null || a.isEmpty()) return null;
+            Address ad = a.get(0);
+            if (ad.getLocality() != null) return ad.getLocality();
+            if (ad.getSubAdminArea() != null) return ad.getSubAdminArea();
+            return ad.getAdminArea();
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private static int havaIkonu(int kod) {
+        if (kod == 0 || kod == 1) return R.drawable.ic_gunes;
+        if ((kod >= 51 && kod <= 67) || (kod >= 80 && kod <= 82) || kod >= 95) return R.drawable.ic_yagmur;
+        if ((kod >= 71 && kod <= 77) || kod == 85 || kod == 86) return R.drawable.ic_kar;
+        return R.drawable.ic_bulut;
     }
 
     private static String havaMetni(int kod) {
@@ -691,7 +767,7 @@ public class MainActivity extends Activity implements LocationListener {
             Drawable ikonTmp;
             CharSequence adTmp;
             if (Kisayollar.NAV.equals(paket)) {
-                ikonTmp = getDrawable(R.drawable.ic_nav);
+                ikonTmp = navIkonu();
                 adTmp = "Navigasyon";
             } else {
                 try {
@@ -707,7 +783,9 @@ public class MainActivity extends Activity implements LocationListener {
             LinearLayout kutu = new LinearLayout(this);
             kutu.setOrientation(LinearLayout.VERTICAL);
             kutu.setGravity(Gravity.CENTER);
-            kutu.setBackgroundResource(R.drawable.buton_bg);
+            TypedValue arkaplan = new TypedValue();
+            getTheme().resolveAttribute(android.R.attr.selectableItemBackgroundBorderless, arkaplan, true);
+            kutu.setBackgroundResource(arkaplan.resourceId);
             kutu.setClickable(true);
             int p = dp(4);
             kutu.setPadding(p, p, p, p);
@@ -724,7 +802,7 @@ public class MainActivity extends Activity implements LocationListener {
 
             TextView tv = new TextView(this);
             tv.setText(ad);
-            tv.setTextColor(getColor(R.color.yazi));
+            tv.setTextColor(yaziRenk);
             tv.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13);
             tv.setGravity(Gravity.CENTER);
             tv.setSingleLine(true);
@@ -761,6 +839,144 @@ public class MainActivity extends Activity implements LocationListener {
             dok.addView(ipucu, new LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.MATCH_PARENT));
         }
+    }
+
+    // ---------------- Tema ve görünüm ayarları ----------------
+
+    private SharedPreferences ayarlar() {
+        return getSharedPreferences("ayarlar", MODE_PRIVATE);
+    }
+
+    private static int karistir(int a, int b, float t) {
+        int ar = (a >> 16) & 0xFF, ag = (a >> 8) & 0xFF, ab = a & 0xFF;
+        int br = (b >> 16) & 0xFF, bg = (b >> 8) & 0xFF, bb = b & 0xFF;
+        int r = Math.round(ar + (br - ar) * t), g = Math.round(ag + (bg - ag) * t), bl = Math.round(ab + (bb - ab) * t);
+        return 0xFF000000 | (r << 16) | (g << 8) | bl;
+    }
+
+    private void temaUygula() {
+        SharedPreferences sp = ayarlar();
+        int secilen = sp.getInt("vurgu", VURGU_RENKLERI[0]);
+        String mod = sp.getString("geceModu", "oto");
+        int h = Calendar.getInstance().get(Calendar.HOUR_OF_DAY);
+        gece = mod.equals("acik") || (mod.equals("oto") && (h >= 19 || h < 7));
+
+        vurgu = gece ? karistir(secilen, 0xFF000000, 0.38f) : secilen;
+        int kart = gece ? 0xEB0E1014 : 0xB8141A22;
+        int tus = gece ? 0xFF15181D : 0xE626313F;
+        int kapakR = gece ? 0xFF15181D : 0xFF26313F;
+        int iz = gece ? 0xFF1D2127 : 0xFF364150;
+        yaziRenk = gece ? 0xFFAEB6BF : 0xFFF2F5F8;
+        int soluk = gece ? 0xFF7A838D : 0xFFAFB9C4;
+
+        kok.setBackgroundColor(gece ? 0xB8000000 : 0x29000000);
+        ColorStateList kartT = ColorStateList.valueOf(kart);
+        havaKart.setBackgroundTintList(kartT);
+        muzikKart.setBackgroundTintList(kartT);
+        dok.setBackgroundTintList(kartT);
+        uygulamalarV.setBackgroundTintList(kartT);
+        ColorStateList tusT = ColorStateList.valueOf(tus);
+        oncekiV.setBackgroundTintList(tusT);
+        sonrakiV.setBackgroundTintList(tusT);
+        kapak.setBackgroundTintList(ColorStateList.valueOf(kapakR));
+
+        GradientDrawable oy = new GradientDrawable();
+        oy.setColor(vurgu);
+        oy.setCornerRadius(dp(22));
+        oynat.setBackground(oy);
+        oynat.setTextColor(0xFF07121C);
+
+        ilerleme.setProgressTintList(ColorStateList.valueOf(vurgu));
+        ilerleme.setProgressBackgroundTintList(ColorStateList.valueOf(iz));
+        kaynak.setTextColor(vurgu);
+        havaIkon.setColorFilter(vurgu);
+        izgaraIkon.setColorFilter(yaziRenk);
+
+        for (TextView t : new TextView[]{saat, sicaklik, sarki, uygulamalarYazi, oncekiV, sonrakiV}) {
+            t.setTextColor(yaziRenk);
+        }
+        for (TextView t : new TextView[]{tarih, havaDurum, sanatci, gecen, toplam}) {
+            t.setTextColor(soluk);
+        }
+        dokuKur();
+    }
+
+    private Drawable navIkonu() {
+        GradientDrawable daire = new GradientDrawable();
+        daire.setShape(GradientDrawable.OVAL);
+        daire.setColor(vurgu);
+        Drawable ok = getDrawable(R.drawable.ic_nav_ok);
+        LayerDrawable ld = new LayerDrawable(new Drawable[]{daire, ok});
+        int i = dp(12);
+        ld.setLayerInset(1, i, i, i, i);
+        ld.setLayerSize(0, dp(56), dp(56));
+        ld.setLayerSize(1, dp(32), dp(32));
+        return ld;
+    }
+
+    private void ayarlarGoster() {
+        String[] secenekler = {
+                "Vurgu rengi",
+                "Gece modu",
+                "Hazır duvar kağıdı: Kırmızı–mavi",
+                "Kendi resmimi duvar kağıdı yap"
+        };
+        new AlertDialog.Builder(this)
+                .setTitle("Görünüm")
+                .setItems(secenekler, (d, w) -> {
+                    if (w == 0) renkSec();
+                    else if (w == 1) geceSec();
+                    else if (w == 2) hazirDuvarKagidi();
+                    else duvarKagidiSec();
+                })
+                .show();
+    }
+
+    private void renkSec() {
+        int simdiki = ayarlar().getInt("vurgu", VURGU_RENKLERI[0]);
+        int sec = 0;
+        for (int i = 0; i < VURGU_RENKLERI.length; i++) if (VURGU_RENKLERI[i] == simdiki) sec = i;
+        new AlertDialog.Builder(this)
+                .setTitle("Vurgu rengi")
+                .setSingleChoiceItems(VURGU_ADLARI, sec, (d, w) -> {
+                    ayarlar().edit().putInt("vurgu", VURGU_RENKLERI[w]).apply();
+                    d.dismiss();
+                    temaUygula();
+                })
+                .show();
+    }
+
+    private void geceSec() {
+        String[] adlar = {"Otomatik (19:00–07:00 arası)", "Her zaman açık", "Kapalı"};
+        String[] anahtar = {"oto", "acik", "kapali"};
+        String simdiki = ayarlar().getString("geceModu", "oto");
+        int sec = 0;
+        for (int i = 0; i < anahtar.length; i++) if (anahtar[i].equals(simdiki)) sec = i;
+        new AlertDialog.Builder(this)
+                .setTitle("Gece modu")
+                .setSingleChoiceItems(adlar, sec, (d, w) -> {
+                    ayarlar().edit().putString("geceModu", anahtar[w]).apply();
+                    d.dismiss();
+                    temaUygula();
+                })
+                .show();
+    }
+
+    private void hazirDuvarKagidi() {
+        Toast.makeText(this, "Duvar kağıdı yükleniyor…", Toast.LENGTH_SHORT).show();
+        new Thread(() -> {
+            boolean tamam;
+            try {
+                WallpaperManager.getInstance(this).setResource(R.drawable.duvar_kirmizi_mavi);
+                tamam = true;
+            } catch (Exception e) {
+                tamam = false;
+            }
+            final boolean t = tamam;
+            handler.post(() -> Toast.makeText(this,
+                    t ? "Duvar kağıdı ayarlandı" : "Duvar kağıdı ayarlanamadı",
+                    Toast.LENGTH_SHORT).show());
+        }).start();
     }
 
     private int dp(int deger) {

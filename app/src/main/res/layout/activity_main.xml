@@ -64,13 +64,21 @@
             android:background="@drawable/kart_bg"
             android:gravity="center"
             android:orientation="vertical"
-            android:padding="12dp">
+            android:padding="10dp">
+
+            <ImageView
+                android:id="@+id/havaIkon"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1.2"
+                android:scaleType="fitCenter"
+                android:src="@drawable/ic_gunes" />
 
             <TextView
                 android:id="@+id/sicaklik"
                 android:layout_width="match_parent"
                 android:layout_height="0dp"
-                android:layout_weight="2"
+                android:layout_weight="1.6"
                 android:autoSizeMaxTextSize="64sp"
                 android:autoSizeMinTextSize="16sp"
                 android:autoSizeTextType="uniform"
@@ -96,6 +104,7 @@
 
     <!-- Çalan müzik -->
     <LinearLayout
+        android:id="@+id/muzikKart"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_marginTop="14dp"
@@ -137,9 +146,10 @@
                     android:layout_height="wrap_content"
                     android:ellipsize="end"
                     android:maxLines="1"
+                    android:fontFamily="sans-serif-medium"
                     android:text="Müzik"
                     android:textColor="@color/vurgu"
-                    android:textSize="14sp" />
+                    android:textSize="15sp" />
 
                 <TextView
                     android:id="@+id/sarki"
@@ -151,7 +161,7 @@
                     android:maxLines="2"
                     android:text="Şu an çalan yok"
                     android:textColor="@color/yazi"
-                    android:textSize="24sp" />
+                    android:textSize="27sp" />
 
                 <TextView
                     android:id="@+id/sanatci"
@@ -172,6 +182,8 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="14dp"
             android:max="1000"
+            android:minHeight="6dp"
+            android:maxHeight="6dp"
             android:progress="0"
             android:progressTint="@color/vurgu" />
 
@@ -216,6 +228,7 @@
             <TextView
                 android:id="@+id/oynat"
                 style="@style/MedyaButon"
+                android:layout_weight="1.3"
                 android:layout_marginStart="7dp"
                 android:layout_marginEnd="7dp"
                 android:text="▶" />
@@ -240,24 +253,34 @@
         android:orientation="horizontal"
         android:padding="6dp" />
 
-    <!-- Tüm uygulamalar -->
-    <TextView
+    <!-- Tüm uygulamalar (uzun bas: tema ayarları) -->
+    <LinearLayout
         android:id="@+id/uygulamalar"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_marginTop="14dp"
         android:layout_weight="0.7"
-        android:autoSizeMaxTextSize="26sp"
-        android:autoSizeMinTextSize="12sp"
-        android:autoSizeTextType="uniform"
         android:background="@drawable/buton_bg"
         android:clickable="true"
         android:focusable="true"
         android:gravity="center"
-        android:maxLines="1"
-        android:padding="8dp"
-        android:text="Tüm uygulamalar"
-        android:textColor="@color/yazi" />
+        android:orientation="horizontal">
+
+        <ImageView
+            android:id="@+id/izgaraIkon"
+            android:layout_width="22dp"
+            android:layout_height="22dp"
+            android:layout_marginEnd="10dp"
+            android:src="@drawable/ic_izgara" />
+
+        <TextView
+            android:id="@+id/uygulamalarYazi"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Tüm uygulamalar"
+            android:textColor="@color/yazi"
+            android:textSize="19sp" />
+    </LinearLayout>
 
     <!-- Ünitenin altta her zaman duran klima çubuğu için boşluk -->
     <View
