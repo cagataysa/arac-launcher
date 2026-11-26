@@ -2,6 +2,10 @@ plugins {
     id 'com.android.application'
 }
 
+def ksYolu = System.getenv("ARAC_KEYSTORE")
+def ksSifre = System.getenv("ARAC_KS_PASS")
+def sabitImza = ksYolu != null && ksSifre != null && new File(ksYolu).length() > 0
+
 android {
     namespace 'com.cagatay.aracekran'
     compileSdk 34
@@ -12,6 +16,23 @@ android {
         targetSdk 34
         versionCode 1
         versionName '1.0'
+    }
+
+    signingConfigs {
+        if (sabitImza) {
+            sabit {
+                storeFile file(ksYolu)
+                storePassword ksSifre
+                keyAlias 'arac'
+                keyPassword ksSifre
+            }
+        }
+    }
+
+    buildTypes {
+        debug {
+            if (sabitImza) signingConfig signingConfigs.sabit
+        }
     }
 
     compileOptions {

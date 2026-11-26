@@ -22,7 +22,16 @@ jobs:
         with:
           gradle-version: '8.9'
 
+      - name: İmza anahtarı (gizli ayarlardan)
+        env:
+          KS_B64: ${{ secrets.ARAC_KEYSTORE_B64 }}
+        run: |
+          if [ -n "$KS_B64" ]; then echo "$KS_B64" | base64 -d > "$RUNNER_TEMP/arac.keystore"; echo "Sabit imza kullanılacak"; else echo "Gizli imza yok, geçici imza kullanılacak"; fi
+
       - name: Derle
+        env:
+          ARAC_KEYSTORE: ${{ runner.temp }}/arac.keystore
+          ARAC_KS_PASS: ${{ secrets.ARAC_KS_PASS }}
         run: gradle assembleDebug --no-daemon
 
       - name: APK adını düzelt

@@ -80,7 +80,7 @@ final class Kisayollar {
     }
 
     /** CarPlay / telefon bağlantı uygulamaları ünitelerde farklı adlarla gelir. */
-    private static boolean carplayMi(String ad, String paket) {
+    static boolean carplayMi(String ad, String paket) {
         String a = ad.toLowerCase(new java.util.Locale("tr", "TR"));
         String p = paket.toLowerCase(java.util.Locale.ROOT);
         return a.contains("kolay") || a.contains("carplay") || a.contains("zlink")

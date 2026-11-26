@@ -783,12 +783,17 @@ public class MainActivity extends Activity implements LocationListener {
             Drawable ikonTmp;
             CharSequence adTmp;
             if (Kisayollar.NAV.equals(paket)) {
-                ikonTmp = navIkonu();
+                ikonTmp = kareIkon(vurgu, getDrawable(R.drawable.ic_nav_ok), false);
                 adTmp = "Navigasyon";
             } else {
                 try {
-                    ikonTmp = pm.getApplicationIcon(paket);
                     adTmp = pm.getApplicationLabel(pm.getApplicationInfo(paket, 0));
+                    int[] stil = ikonStili(paket, adTmp);
+                    if (stil != null) {
+                        ikonTmp = kareIkon(stil[0], getDrawable(stil[1]), false);
+                    } else {
+                        ikonTmp = kareIkon(tusRenk, pm.getApplicationIcon(paket), true);
+                    }
                 } catch (PackageManager.NameNotFoundException e) {
                     continue; // kaldırılmış uygulama
                 }
@@ -812,7 +817,7 @@ public class MainActivity extends Activity implements LocationListener {
             if (hucreler.size() >= SUTUN * SATIR - 1) break;
         }
 
-        View tumu = hucre(tumuIkonu(), "Tümü");
+        View tumu = hucre(kareIkon(0xFF5D6470, getDrawable(R.drawable.ic_g_tum), false), "Tümü");
         tumu.setOnClickListener(v -> startActivity(new Intent(this, AppsActivity.class)));
         tumu.setOnLongClickListener(v -> {
             ayarlarGoster();
@@ -881,6 +886,54 @@ public class MainActivity extends Activity implements LocationListener {
         ld.setLayerSize(1, dp(36), dp(36));
         ld.setLayerInset(1, dp(24), dp(24), dp(24), dp(24));
         return ld;
+    }
+
+    /**
+     * Apple tarzı ikon: yuvarlatılmış kare, canlı zemin, beyaz sembol.
+     * uygulamaIkonu=true ise uygulamanın kendi ikonu aynı çerçeveye oturtulur.
+     */
+    private Drawable kareIkon(int renk, Drawable ic, boolean uygulamaIkonu) {
+        int zemin = gece ? karistir(renk, 0xFF000000, 0.38f) : renk;
+        GradientDrawable kare = new GradientDrawable();
+        kare.setColor(zemin);
+        kare.setCornerRadius(dp(19));
+        kare.setStroke(dp(1), gece ? 0x14FFFFFF : 0x1FFFFFFF);
+        Drawable on = ic.mutate();
+        if (!uygulamaIkonu && gece) on.setAlpha(200);
+        LayerDrawable ld = new LayerDrawable(new Drawable[]{kare, on});
+        int boy = dp(84);
+        int sembol = uygulamaIkonu ? dp(62) : dp(44);
+        int k = (boy - sembol) / 2;
+        ld.setLayerSize(0, boy, boy);
+        ld.setLayerSize(1, sembol, sembol);
+        ld.setLayerInset(1, k, k, k, k);
+        return ld;
+    }
+
+    /** Bilinen uygulamalar için {zemin rengi, sembol}; tanınmayanlar için null. */
+    private int[] ikonStili(String paket, CharSequence etiket) {
+        String a = String.valueOf(etiket).toLowerCase(TR);
+        String p = paket.toLowerCase(Locale.ROOT);
+        if (Kisayollar.carplayMi(String.valueOf(etiket), paket)) return new int[]{0xFFF28A1E, R.drawable.ic_g_bag};
+        if (a.equals("telefon") || a.equals("phone") || a.contains("dialer") || p.contains("dialer"))
+            return new int[]{0xFF27B24A, R.drawable.ic_g_tel};
+        if (a.contains("music") || a.contains("müzik") || a.contains("spotify") || p.contains("music"))
+            return new int[]{0xFFF23B4D, R.drawable.ic_g_muz};
+        if (a.contains("radyo") || a.contains("radio") || p.contains("radio"))
+            return new int[]{0xFF7C4DDB, R.drawable.ic_g_rad};
+        if (a.equals("ayarlar") || a.equals("settings") || p.equals("com.android.settings"))
+            return new int[]{0xFF8A8A90, R.drawable.ic_g_ayr};
+        if (a.contains("harita") || a.contains("maps") || a.contains("igo") || p.contains("maps") || p.contains("igo"))
+            return new int[]{0xFF16A3A0, R.drawable.ic_g_har};
+        if (a.contains("dvr") || p.contains("dvr"))
+            return new int[]{0xFF3A3F4A, R.drawable.ic_g_dvr};
+        if (a.contains("video") || a.contains("youtube") || p.contains("video"))
+            return new int[]{0xFF3C47D6, R.drawable.ic_g_vid};
+        if (a.contains("galeri") || a.contains("gallery") || p.contains("gallery"))
+            return new int[]{0xFFE0458E, R.drawable.ic_g_gal};
+        if (a.contains("chrome") || a.contains("tarayıcı") || a.contains("browser") || p.contains("chrome") || p.contains("browser"))
+            return new int[]{0xFF2E8FE8, R.drawable.ic_g_web};
+        return null;
     }
 
     private GradientDrawable daire(int renk) {
