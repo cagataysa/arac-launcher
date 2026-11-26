@@ -69,9 +69,10 @@ public class MainActivity extends Activity implements LocationListener {
     private ImageView kapak;
     private ProgressBar ilerleme;
     private LinearLayout dok;
-    private View kok, havaKart, muzikKart, uygulamalarV;
-    private ImageView havaIkon, izgaraIkon;
-    private TextView uygulamalarYazi, oncekiV, sonrakiV;
+    private View kok, havaKart, muzikKart, ayrac;
+    private ImageView havaIkon, navBtn, telBtn;
+    private TextView oncekiV, sonrakiV;
+    private int tusRenk = 0xE626313F;
 
     // Tema
     private static final int[] VURGU_RENKLERI = {0xFF3DA9FC, 0xFFE8452C, 0xFF2BB673, 0xFFF2A93B};
@@ -178,10 +179,24 @@ public class MainActivity extends Activity implements LocationListener {
         kok = findViewById(R.id.kok);
         havaKart = findViewById(R.id.havaKart);
         muzikKart = findViewById(R.id.muzikKart);
-        uygulamalarV = findViewById(R.id.uygulamalar);
         havaIkon = findViewById(R.id.havaIkon);
-        izgaraIkon = findViewById(R.id.izgaraIkon);
-        uygulamalarYazi = findViewById(R.id.uygulamalarYazi);
+        navBtn = findViewById(R.id.navBtn);
+        telBtn = findViewById(R.id.telBtn);
+        ayrac = findViewById(R.id.ayrac);
+        navBtn.setOnClickListener(v -> {
+            if (!Kisayollar.baslat(this, Kisayollar.NAV)) {
+                Toast.makeText(this, "Navigasyon uygulaması bulunamadı", Toast.LENGTH_SHORT).show();
+            }
+        });
+        telBtn.setOnClickListener(v -> telefonAc());
+        // Kapak kare olsun: yüksekliği kadar genişlik
+        kapak.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or, ob) -> {
+            int h = b - t;
+            if (h > 0 && v.getLayoutParams().width != h) {
+                v.getLayoutParams().width = h;
+                v.post(v::requestLayout);
+            }
+        });
         oncekiV = findViewById(R.id.onceki);
         sonrakiV = findViewById(R.id.sonraki);
 
@@ -197,12 +212,7 @@ public class MainActivity extends Activity implements LocationListener {
             teshisGoster();
             return true;
         });
-        uygulamalarV.setOnClickListener(v ->
-                startActivity(new Intent(this, AppsActivity.class)));
-        uygulamalarV.setOnLongClickListener(v -> {
-            ayarlarGoster();
-            return true;
-        });
+
         findViewById(R.id.havaKart).setOnClickListener(v -> {
             sonHavaZamani = 0;
             havaGuncelle(true);
@@ -210,7 +220,7 @@ public class MainActivity extends Activity implements LocationListener {
 
         // Saate uzun basınca duvar kağıdı seçici açılır
         findViewById(R.id.saatAlani).setOnLongClickListener(v -> {
-            duvarKagidiSec();
+            ayarlarGoster();
             return true;
         });
 
@@ -219,7 +229,7 @@ public class MainActivity extends Activity implements LocationListener {
             sp.edit().putBoolean("duvarSoruldu", true).apply();
             new AlertDialog.Builder(this)
                     .setTitle("Duvar kağıdı")
-                    .setMessage("Kırmızı–mavi duvar kağıdı yüklensin mi? Sonradan \"Tüm uygulamalar\"a uzun basarak değiştirebilirsin.")
+                    .setMessage("Kırmızı–mavi duvar kağıdı yüklensin mi? Sonradan saate ya da \"Tümü\"ne uzun basarak değiştirebilirsin.")
                     .setPositiveButton("Yükle", (d, w) -> hazirDuvarKagidi())
                     .setNegativeButton("Şimdi değil", null)
                     .show();
@@ -757,11 +767,14 @@ public class MainActivity extends Activity implements LocationListener {
 
     // ---------------- Kısayollar (dok) ----------------
 
+    private static final int SUTUN = 4, SATIR = 3;
+
+    /** İkon ızgarası: kısayollar (en fazla 11) + sonda "Tümü". */
     private void dokuKur() {
         dok.removeAllViews();
         PackageManager pm = getPackageManager();
         List<String> paketler = Kisayollar.oku(this);
-        int eklenen = 0;
+        List<View> hucreler = new java.util.ArrayList<>();
 
         for (String paket : paketler) {
             Drawable ikonTmp;
@@ -777,67 +790,119 @@ public class MainActivity extends Activity implements LocationListener {
                     continue; // kaldırılmış uygulama
                 }
             }
-            final Drawable ikon = ikonTmp;
             final CharSequence ad = adTmp;
-
-            LinearLayout kutu = new LinearLayout(this);
-            kutu.setOrientation(LinearLayout.VERTICAL);
-            kutu.setGravity(Gravity.CENTER);
-            TypedValue arkaplan = new TypedValue();
-            getTheme().resolveAttribute(android.R.attr.selectableItemBackgroundBorderless, arkaplan, true);
-            kutu.setBackgroundResource(arkaplan.resourceId);
-            kutu.setClickable(true);
-            int p = dp(4);
-            kutu.setPadding(p, p, p, p);
-            LinearLayout.LayoutParams lp =
-                    new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f);
-            lp.setMargins(dp(3), 0, dp(3), 0);
-            kutu.setLayoutParams(lp);
-
-            ImageView iv = new ImageView(this);
-            iv.setImageDrawable(ikon);
-            iv.setAdjustViewBounds(true);
-            iv.setLayoutParams(new LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT, 0, 3f));
-
-            TextView tv = new TextView(this);
-            tv.setText(ad);
-            tv.setTextColor(yaziRenk);
-            tv.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13);
-            tv.setGravity(Gravity.CENTER);
-            tv.setSingleLine(true);
-            tv.setLayoutParams(new LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f));
-
-            kutu.addView(iv);
-            kutu.addView(tv);
-
-            kutu.setOnClickListener(v -> {
+            View h = hucre(ikonTmp, ad);
+            h.setOnClickListener(v -> {
                 if (!Kisayollar.baslat(this, paket)) {
                     Toast.makeText(this,
                             Kisayollar.NAV.equals(paket) ? "Navigasyon uygulaması bulunamadı" : "Açılamadı",
                             Toast.LENGTH_SHORT).show();
                 }
             });
-            kutu.setOnLongClickListener(v -> {
+            h.setOnLongClickListener(v -> {
                 Kisayollar.degistir(this, paket);
-                Toast.makeText(this, ad + " kısayollardan çıkarıldı", Toast.LENGTH_SHORT).show();
+                Toast.makeText(this, ad + " ana ekrandan çıkarıldı", Toast.LENGTH_SHORT).show();
                 dokuKur();
                 return true;
             });
-
-            dok.addView(kutu);
-            eklenen++;
+            hucreler.add(h);
+            if (hucreler.size() >= SUTUN * SATIR - 1) break;
         }
 
-        if (eklenen == 0) {
-            TextView ipucu = new TextView(this);
-            ipucu.setText("Kısayol eklemek için: Tüm uygulamalar → uygulamaya uzun bas");
-            ipucu.setTextColor(getColor(R.color.soluk));
-            ipucu.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16);
-            ipucu.setGravity(Gravity.CENTER);
-            dok.addView(ipucu, new LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.MATCH_PARENT));
+        View tumu = hucre(tumuIkonu(), "Tümü");
+        tumu.setOnClickListener(v -> startActivity(new Intent(this, AppsActivity.class)));
+        tumu.setOnLongClickListener(v -> {
+            ayarlarGoster();
+            return true;
+        });
+        hucreler.add(tumu);
+
+        for (int r = 0; r < SATIR; r++) {
+            LinearLayout satir = new LinearLayout(this);
+            satir.setOrientation(LinearLayout.HORIZONTAL);
+            dok.addView(satir, new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f));
+            for (int c = 0; c < SUTUN; c++) {
+                int i = r * SUTUN + c;
+                View h;
+                if (i < hucreler.size()) {
+                    h = hucreler.get(i);
+                } else {
+                    h = new View(this); // boş hücre
+                }
+                satir.addView(h, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f));
+            }
+        }
+    }
+
+    private View hucre(Drawable ikon, CharSequence ad) {
+        LinearLayout kutu = new LinearLayout(this);
+        kutu.setOrientation(LinearLayout.VERTICAL);
+        kutu.setGravity(Gravity.CENTER);
+        TypedValue arkaplan = new TypedValue();
+        getTheme().resolveAttribute(android.R.attr.selectableItemBackgroundBorderless, arkaplan, true);
+        kutu.setBackgroundResource(arkaplan.resourceId);
+        kutu.setClickable(true);
+        int p = dp(8);
+        kutu.setPadding(p, p, p, dp(4));
+
+        ImageView iv = new ImageView(this);
+        iv.setImageDrawable(ikon);
+        iv.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        kutu.addView(iv, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, 0, 3f));
+
+        TextView tv = new TextView(this);
+        tv.setText(ad);
+        tv.setTextColor(yaziRenk);
+        tv.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15);
+        tv.setGravity(Gravity.CENTER);
+        tv.setSingleLine(true);
+        tv.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        tv.setShadowLayer(6, 0, 1, 0xA0000000);
+        LinearLayout.LayoutParams tlp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        tlp.topMargin = dp(6);
+        kutu.addView(tv, tlp);
+        return kutu;
+    }
+
+    private Drawable tumuIkonu() {
+        GradientDrawable kare = new GradientDrawable();
+        kare.setColor(tusRenk);
+        kare.setCornerRadius(dp(22));
+        Drawable izgara = getDrawable(R.drawable.ic_izgara).mutate();
+        izgara.setTint(yaziRenk);
+        LayerDrawable ld = new LayerDrawable(new Drawable[]{kare, izgara});
+        ld.setLayerSize(0, dp(84), dp(84));
+        ld.setLayerSize(1, dp(36), dp(36));
+        ld.setLayerInset(1, dp(24), dp(24), dp(24), dp(24));
+        return ld;
+    }
+
+    private GradientDrawable daire(int renk) {
+        GradientDrawable g = new GradientDrawable();
+        g.setShape(GradientDrawable.OVAL);
+        g.setColor(renk);
+        return g;
+    }
+
+    /** Ünitenin "Telefon" uygulamasını ada göre bulup açar; yoksa arama ekranı. */
+    private void telefonAc() {
+        PackageManager pm = getPackageManager();
+        Intent sorgu = new Intent(Intent.ACTION_MAIN);
+        sorgu.addCategory(Intent.CATEGORY_LAUNCHER);
+        for (android.content.pm.ResolveInfo ri : pm.queryIntentActivities(sorgu, 0)) {
+            String ad = String.valueOf(ri.loadLabel(pm)).trim();
+            if (ad.equalsIgnoreCase("Telefon") || ad.equalsIgnoreCase("Phone")
+                    || ad.equalsIgnoreCase("Bluetooth")) {
+                if (Kisayollar.baslat(this, ri.activityInfo.packageName)) return;
+            }
+        }
+        try {
+            startActivity(new Intent(Intent.ACTION_DIAL).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+        } catch (Exception e) {
+            Toast.makeText(this, "Telefon uygulaması bulunamadı", Toast.LENGTH_SHORT).show();
         }
     }
 
@@ -871,31 +936,25 @@ public class MainActivity extends Activity implements LocationListener {
 
         kok.setBackgroundColor(gece ? 0xB8000000 : 0x29000000);
         ColorStateList kartT = ColorStateList.valueOf(kart);
-        havaKart.setBackgroundTintList(kartT);
         muzikKart.setBackgroundTintList(kartT);
-        dok.setBackgroundTintList(kartT);
-        uygulamalarV.setBackgroundTintList(kartT);
-        ColorStateList tusT = ColorStateList.valueOf(tus);
-        oncekiV.setBackgroundTintList(tusT);
-        sonrakiV.setBackgroundTintList(tusT);
+        tusRenk = tus;
         kapak.setBackgroundTintList(ColorStateList.valueOf(kapakR));
 
-        GradientDrawable oy = new GradientDrawable();
-        oy.setColor(vurgu);
-        oy.setCornerRadius(dp(22));
-        oynat.setBackground(oy);
+        oynat.setBackground(daire(vurgu));
         oynat.setTextColor(0xFF07121C);
+        navBtn.setBackground(daire(vurgu));
+        telBtn.setBackground(daire(gece ? 0xFF24551A : 0xFF3B8A1E));
+        ayrac.setBackgroundColor(gece ? 0xFF2A2E34 : 0x55FFFFFF);
 
         ilerleme.setProgressTintList(ColorStateList.valueOf(vurgu));
         ilerleme.setProgressBackgroundTintList(ColorStateList.valueOf(iz));
         kaynak.setTextColor(vurgu);
-        havaIkon.setColorFilter(vurgu);
-        izgaraIkon.setColorFilter(yaziRenk);
+        havaIkon.setColorFilter(yaziRenk);
 
-        for (TextView t : new TextView[]{saat, sicaklik, sarki, uygulamalarYazi, oncekiV, sonrakiV}) {
+        for (TextView t : new TextView[]{saat, tarih, sicaklik, havaDurum, sarki, sonrakiV}) {
             t.setTextColor(yaziRenk);
         }
-        for (TextView t : new TextView[]{tarih, havaDurum, sanatci, gecen, toplam}) {
+        for (TextView t : new TextView[]{sanatci, gecen, toplam}) {
             t.setTextColor(soluk);
         }
         dokuKur();
@@ -907,10 +966,9 @@ public class MainActivity extends Activity implements LocationListener {
         daire.setColor(vurgu);
         Drawable ok = getDrawable(R.drawable.ic_nav_ok);
         LayerDrawable ld = new LayerDrawable(new Drawable[]{daire, ok});
-        int i = dp(12);
-        ld.setLayerInset(1, i, i, i, i);
-        ld.setLayerSize(0, dp(56), dp(56));
-        ld.setLayerSize(1, dp(32), dp(32));
+        ld.setLayerSize(0, dp(84), dp(84));
+        ld.setLayerSize(1, dp(40), dp(40));
+        ld.setLayerInset(1, dp(22), dp(22), dp(22), dp(22));
         return ld;
     }
 
